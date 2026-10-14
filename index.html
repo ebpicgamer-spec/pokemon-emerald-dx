@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- v2.1 - local file patcher with CSS fix - 2026-10-14 -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -59,6 +60,7 @@
   .step-body h2 { font-size: 1.05rem; margin-bottom: 0.5rem; }
   .step-body p { color: var(--muted); font-size: 0.9rem; margin-bottom: 0.75rem; line-height: 1.5; }
   .file-drop {
+    display: block;
     border: 2px dashed var(--border);
     border-radius: 8px;
     padding: 1.5rem;
@@ -66,6 +68,7 @@
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s;
     color: var(--muted);
+    margin-top: 0.25rem;
   }
   .file-drop:hover, .file-drop.dragover { border-color: var(--accent); background: rgba(67, 209, 124, 0.05); }
   .file-drop input { display: none; }
@@ -138,40 +141,47 @@
   <div class="step" id="step2">
     <div class="step-num">2</div>
     <div class="step-body">
-      <h2>Apply the Emerald DX patch</h2>
-      <p>The patch (about 33&nbsp;MB) is downloaded once, then applied locally.</p>
-      <button id="patchBtn" disabled>Patch ROM</button>
-      <div class="progress-wrap" id="progressWrap">
-        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-        <div class="progress-label" id="progressLabel"></div>
-      </div>
-      <div class="status" id="patchStatus"></div>
+      <h2>Select the Emerald DX patch file</h2>
+      <p>Download <span class="mono">emerald-dx.bps</span> from the
+         <a href="https://github.com/ebpicgamer-spec/pokemon-emerald-dx/releases">releases page</a>,
+         then select it here. The patcher will verify it automatically.</p>
+      <label class="file-drop" id="patchDropZone">
+        <input type="file" id="patchInput" accept=".bps">
+        <span id="patchDropText">Drop <span class="mono">emerald-dx.bps</span> here or click to browse</span>
+      </label>
+      <div class="status" id="patchFileStatus"></div>
     </div>
   </div>
 
   <div class="step" id="step3">
     <div class="step-num">3</div>
     <div class="step-body">
-      <h2>Download your patched ROM</h2>
-      <p id="doneText">Your patched ROM will appear here when ready.</p>
+      <h2>Patch and download</h2>
+      <p id="readyText">Select both files above to enable patching.</p>
+      <button id="patchBtn" disabled>Patch ROM</button>
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-label" id="progressLabel"></div>
+      </div>
+      <div class="status" id="patchStatus"></div>
+      <p id="doneText" style="margin-top:0.75rem">Your patched ROM will appear here when ready.</p>
       <a class="btn hidden" id="downloadBtn" href="#">Download Pok&eacute;mon Emerald DX</a>
     </div>
   </div>
 </div>
 
 <footer>
-  You must provide your own vanilla Pok&eacute;mon Emerald ROM &mdash; this page ships the patch only, no game data.<br>
+  Download the <span class="mono">emerald-dx.bps</span> patch from the
+  <a href="https://github.com/ebpicgamer-spec/pokemon-emerald-dx/releases">releases page</a>.
+  You must also provide your own vanilla Pok&eacute;mon Emerald ROM &mdash; no game data is shipped here.<br>
   Pok&eacute;mon &copy; Nintendo / Creatures Inc. / GAME FREAK inc. Emerald DX is a fan project.
 </footer>
 
 <script>
 'use strict';
-/* =====================================================================
- * CONFIG — update PATCH_URL when you publish a new release.
- * If GitHub release downloads are blocked by CORS in some browser,
- * host emerald-dx.bps next to this file instead and use 'emerald-dx.bps'.
- * ===================================================================== */
-const PATCH_URL = 'https://github.com/ebpicgamer-spec/pokemon-emerald-dx/releases/download/v1.0/emerald-dx.bps';
+/* Local-file patcher: the user selects their vanilla ROM and the
+ * emerald-dx.bps patch file (downloaded from the releases page).
+ * Everything runs locally in the browser — no network requests. */
 const PATCHED_FILENAME = 'pokemon-emerald-dx.gba';
 const EXPECTED_ROM_SIZE = 16777216;      // 16 MiB — vanilla Emerald (US)
 const EXPECTED_ROM_CRC32 = 0x1F1C08FB;   // US v1.0
@@ -292,11 +302,24 @@ async function applyBps(source, patch, onProgress) {
 /* ---------------- UI ---------------- */
 const $ = id => document.getElementById(id);
 const romInput = $('romInput'), dropZone = $('dropZone'), dropText = $('dropText');
-const romStatus = $('romStatus'), patchBtn = $('patchBtn'), patchStatus = $('patchStatus');
+const romStatus = $('romStatus');
+const patchInput = $('patchInput'), patchDropZone = $('patchDropZone'), patchDropText = $('patchDropText');
+const patchFileStatus = $('patchFileStatus'), readyText = $('readyText');
+const patchBtn = $('patchBtn'), patchStatus = $('patchStatus');
 const progressWrap = $('progressWrap'), progressFill = $('progressFill'), progressLabel = $('progressLabel');
 const downloadBtn = $('downloadBtn'), doneText = $('doneText');
 
 let romData = null;
+let patchData = null;
+
+function updatePatchButton() {
+  const ready = !!(romData && patchData);
+  patchBtn.disabled = !ready;
+  if (ready) {
+    setStep(3, 'active');
+    readyText.textContent = 'Both files are ready. Click Patch ROM to apply the patch.';
+  }
+}
 
 function setStep(n, state) {
   const el = $('step' + n);
@@ -319,7 +342,8 @@ async function handleFile(file) {
   patchBtn.disabled = true;
   downloadBtn.classList.add('hidden');
   doneText.textContent = 'Your patched ROM will appear here when ready.';
-  setStep(2, ''); setStep(3, '');
+  setStep(1, 'active'); setStep(3, '');
+  progressWrap.classList.remove('show');
   if (!file) return;
 
   dropText.innerHTML = 'Reading <span class="mono">' + escapeHtml(file.name) + '</span>&hellip;';
@@ -351,8 +375,8 @@ async function handleFile(file) {
     dropText.innerHTML = '<span class="mono">' + escapeHtml(file.name) + '</span> ✓';
     setStatus(romStatus,
       'Valid vanilla Emerald ROM detected (16 MiB, CRC32 ' + hex8(crc) + ').', 'ok');
-    setStep(1, 'done'); setStep(2, 'active');
-    patchBtn.disabled = false;
+    setStep(1, 'done');
+    updatePatchButton();
     setStatus(patchStatus, '', '');
   } catch (e) {
     setStatus(romStatus, 'Could not read file: ' + e.message, 'err');
@@ -376,49 +400,71 @@ dropZone.addEventListener('drop', e => {
   if (f) handleFile(f);
 });
 
-patchBtn.addEventListener('click', async () => {
-  if (!romData) return;
+async function handlePatchFile(file) {
+  patchData = null;
+  patchInput.value = '';
   patchBtn.disabled = true;
   downloadBtn.classList.add('hidden');
-  setStep(2, 'active'); setStep(3, '');
+  doneText.textContent = 'Your patched ROM will appear here when ready.';
+  setStep(3, '');
   setStatus(patchStatus, '', '');
+  progressWrap.classList.remove('show');
+  if (!file) return;
+
+  patchDropText.innerHTML = 'Reading <span class="mono">' + escapeHtml(file.name) + '</span>&hellip;';
+  setStatus(patchFileStatus, 'Checking patch file…', 'info');
 
   try {
-    // 1. Download patch with progress
-    setStatus(patchStatus, 'Downloading patch…', 'info');
-    setProgress(0, 'Connecting…');
-    let resp;
-    try {
-      resp = await fetch(PATCH_URL);
-    } catch (e) {
-      throw new Error('Could not download the patch file. Check your connection and try again. ' +
-        '(If this keeps failing, the patch URL may need updating — see the page source.)');
+    const buf = await file.arrayBuffer();
+    const data = new Uint8Array(buf);
+    if (data.length < 19 ||
+        data[0] !== 0x42 || data[1] !== 0x50 || data[2] !== 0x53 || data[3] !== 0x31) {
+      setStatus(patchFileStatus,
+        'This does not look like a BPS patch file. Please select emerald-dx.bps.', 'err');
+      patchDropText.innerHTML = 'Drop <span class="mono">emerald-dx.bps</span> here or click to browse';
+      return;
     }
-    if (!resp.ok) throw new Error('Patch download failed (HTTP ' + resp.status + ').');
+    patchData = data;
+    patchDropText.innerHTML = '<span class="mono">' + escapeHtml(file.name) + '</span> ✓ (' +
+      (data.length / 1048576).toFixed(1) + ' MB)';
+    setStatus(patchFileStatus, 'BPS patch file detected.', 'ok');
+    setStep(2, 'done');
+    updatePatchButton();
+  } catch (e) {
+    setStatus(patchFileStatus, 'Could not read file: ' + e.message, 'err');
+    patchDropText.innerHTML = 'Drop <span class="mono">emerald-dx.bps</span> here or click to browse';
+  }
+}
 
-    const total = parseInt(resp.headers.get('Content-Length') || '0', 10);
-    const reader = resp.body.getReader();
-    const chunks = [];
-    let received = 0;
-    for (;;) {
-      const {done, value} = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      received += value.length;
-      setProgress(total ? received / total : 0,
-        total ? ('Downloading patch… ' + (received / 1048576).toFixed(1) + ' / ' + (total / 1048576).toFixed(1) + ' MB')
-              : ('Downloading patch… ' + (received / 1048576).toFixed(1) + ' MB'));
-    }
-    const patchBytes = new Uint8Array(received);
-    let p = 0;
-    for (const c of chunks) { patchBytes.set(c, p); p += c.length; }
+patchDropZone.addEventListener('click', () => patchInput.click());
+patchInput.addEventListener('change', e => handlePatchFile(e.target.files[0]));
+['dragover', 'dragenter'].forEach(ev => patchDropZone.addEventListener(ev, e => {
+  e.preventDefault(); patchDropZone.classList.add('dragover');
+}));
+['dragleave', 'drop'].forEach(ev => patchDropZone.addEventListener(ev, e => {
+  e.preventDefault(); patchDropZone.classList.remove('dragover');
+}));
+patchDropZone.addEventListener('drop', e => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) handlePatchFile(f);
+});
 
-    // 2. Apply patch
+patchBtn.addEventListener('click', async () => {
+  if (!romData || !patchData) return;
+  patchBtn.disabled = true;
+  downloadBtn.classList.add('hidden');
+  setStep(3, 'active');
+  setStatus(patchStatus, '', '');
+  progressWrap.classList.remove('show');
+
+  try {
+    // Apply patch (both files were selected locally — no downloads)
     setStatus(patchStatus, 'Patching… this takes a few seconds.', 'info');
-    const patched = await applyBps(romData, patchBytes, frac =>
+    setProgress(0, 'Starting…');
+    const patched = await applyBps(romData, patchData, frac =>
       setProgress(frac, 'Patching… ' + Math.round(frac * 100) + '%'));
 
-    // 3. Offer download
+    // Offer download
     setProgress(1, 'Done!');
     const blob = new Blob([patched], {type: 'application/octet-stream'});
     const url = URL.createObjectURL(blob);
@@ -427,13 +473,12 @@ patchBtn.addEventListener('click', async () => {
     downloadBtn.classList.remove('hidden');
     doneText.textContent = 'Patched successfully! (' + patched.length.toLocaleString() + ' bytes, verified ✓)';
     setStatus(patchStatus, 'Patch applied and verified.', 'ok');
-    setStep(2, 'done'); setStep(3, 'active');
+    setStep(3, 'done');
   } catch (e) {
     setStatus(patchStatus, 'Error: ' + e.message, 'err');
-    setStep(2, 'active');
     progressWrap.classList.remove('show');
   } finally {
-    patchBtn.disabled = false;
+    updatePatchButton();
   }
 });
 </script>
