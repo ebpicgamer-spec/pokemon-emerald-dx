@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pok&eacute;mon Emerald DX Patcher</title>
+<style>
+  :root {
+    --bg: #0f1420;
+    --card: #1a2233;
+    --border: #2c3a55;
+    --accent: #43d17c;
+    --accent-dim: #2a8f55;
+    --text: #e8edf5;
+    --muted: #8b98b0;
+    --error: #ff6b6b;
+    --warn: #ffc857;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem;
+  }
+  header { text-align: center; margin-bottom: 2rem; max-width: 640px; }
+  header h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+  header h1 .dx { color: var(--accent); }
+  header p { color: var(--muted); font-size: 0.95rem; line-height: 1.5; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.75rem;
+    width: 100%;
+    max-width: 640px;
+    margin-bottom: 1rem;
+  }
+  .step { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+  .step:last-child { margin-bottom: 0; }
+  .step-num {
+    flex: 0 0 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: var(--border);
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+  }
+  .step.active .step-num { background: var(--accent); color: #06130c; }
+  .step.done .step-num { background: var(--accent-dim); color: #fff; }
+  .step-body { flex: 1; }
+  .step-body h2 { font-size: 1.05rem; margin-bottom: 0.5rem; }
+  .step-body p { color: var(--muted); font-size: 0.9rem; margin-bottom: 0.75rem; line-height: 1.5; }
+  .file-drop {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    color: var(--muted);
+  }
+  .file-drop:hover, .file-drop.dragover { border-color: var(--accent); background: rgba(67, 209, 124, 0.05); }
+  .file-drop input { display: none; }
+  .status { font-size: 0.9rem; margin-top: 0.75rem; min-height: 1.4em; }
+  .status.ok { color: var(--accent); }
+  .status.err { color: var(--error); }
+  .status.info { color: var(--warn); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; }
+  button, .btn {
+    display: inline-block;
+    background: var(--accent);
+    color: #06130c;
+    border: none;
+    border-radius: 8px;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  button:hover:not(:disabled), .btn:hover { opacity: 0.9; }
+  button:active:not(:disabled) { transform: scale(0.98); }
+  button:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+  .progress-wrap { margin-top: 0.75rem; display: none; }
+  .progress-wrap.show { display: block; }
+  .progress-bar {
+    height: 0.6rem;
+    background: var(--border);
+    border-radius: 0.3rem;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    border-radius: 0.3rem;
+    transition: width 0.15s;
+  }
+  .progress-label { font-size: 0.85rem; color: var(--muted); margin-top: 0.35rem; }
+  footer { color: var(--muted); font-size: 0.8rem; text-align: center; max-width: 640px; line-height: 1.6; margin-top: 1rem; }
+  footer a { color: var(--accent); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Pok&eacute;mon <span class="dx">Emerald DX</span> Patcher</h1>
+  <p>Patch your vanilla Pok&eacute;mon Emerald ROM (US v1.0) to Emerald DX right in your browser.
+     No files are uploaded anywhere &mdash; everything happens locally on your device.</p>
+</header>
+
+<div class="card">
+  <div class="step active" id="step1">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h2>Select your vanilla ROM</h2>
+      <p>Choose a clean Pok&eacute;mon Emerald (US) ROM <span class="mono">.gba</span> file.
+         It must be exactly 16,777,216 bytes with CRC32 <span class="mono">1F1C08FB</span>.
+         The patcher will verify it automatically.</p>
+      <label class="file-drop" id="dropZone">
+        <input type="file" id="romInput" accept=".gba,.bin">
+        <span id="dropText">Drop your <span class="mono">.gba</span> here or click to browse</span>
+      </label>
+      <div class="status" id="romStatus"></div>
+    </div>
+  </div>
+
+  <div class="step" id="step2">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h2>Apply the Emerald DX patch</h2>
+      <p>The patch (about 33&nbsp;MB) is downloaded once, then applied locally.</p>
+      <button id="patchBtn" disabled>Patch ROM</button>
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-label" id="progressLabel"></div>
+      </div>
+      <div class="status" id="patchStatus"></div>
+    </div>
+  </div>
+
+  <div class="step" id="step3">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <h2>Download your patched ROM</h2>
+      <p id="doneText">Your patched ROM will appear here when ready.</p>
+      <a class="btn hidden" id="downloadBtn" href="#">Download Pok&eacute;mon Emerald DX</a>
+    </div>
+  </div>
+</div>
+
+<footer>
+  You must provide your own vanilla Pok&eacute;mon Emerald ROM &mdash; this page ships the patch only, no game data.<br>
+  Pok&eacute;mon &copy; Nintendo / Creatures Inc. / GAME FREAK inc. Emerald DX is a fan project.
+</footer>
+
+<script>
+'use strict';
+/* =====================================================================
+ * CONFIG — update PATCH_URL when you publish a new release.
+ * If GitHub release downloads are blocked by CORS in some browser,
+ * host emerald-dx.bps next to this file instead and use 'emerald-dx.bps'.
+ * ===================================================================== */
+const PATCH_URL = 'https://github.com/ebpicgamer-spec/pokemon-emerald-dx/releases/download/v1.0/emerald-dx.bps';
+const PATCHED_FILENAME = 'pokemon-emerald-dx.gba';
+const EXPECTED_ROM_SIZE = 16777216;      // 16 MiB — vanilla Emerald (US)
+const EXPECTED_ROM_CRC32 = 0x1F1C08FB;   // US v1.0
+
+/* ---------------- CRC32 ---------------- */
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c;
+  }
+  return t;
+})();
+function crc32(data) {
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < data.length; i++) crc = CRC_TABLE[(crc ^ data[i]) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+function hex8(n) { return n.toString(16).toUpperCase().padStart(8, '0'); }
+
+/* ---------------- BPS applier (byuu's BPS1 spec) ---------------- */
+function bpsReadNumber(data, offset) {
+  let result = 0, shift = 1;
+  for (;;) {
+    const x = data[offset++];
+    result += (x & 0x7F) * shift;
+    if (x & 0x80) break;
+    shift <<= 7;
+    result += shift;
+  }
+  return [result, offset];
+}
+function bpsReadU32LE(data, offset) {
+  return (data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16) | (data[offset + 3] << 24)) >>> 0;
+}
+
+/* Applies a BPS patch. Throws with a human-readable message on failure.
+ * onProgress(fraction) is called periodically; may be used to yield to UI. */
+async function applyBps(source, patch, onProgress) {
+  let off = 0;
+  if (patch.length < 19) throw new Error('Patch file is too small to be a valid BPS.');
+  if (patch[0] !== 0x42 || patch[1] !== 0x50 || patch[2] !== 0x53 || patch[3] !== 0x31)
+    throw new Error('Not a BPS patch (bad magic bytes).');
+  off = 4;
+
+  let sourceSize, targetSize, metadataSize;
+  [sourceSize, off] = bpsReadNumber(patch, off);
+  [targetSize, off] = bpsReadNumber(patch, off);
+  [metadataSize, off] = bpsReadNumber(patch, off);
+  off += metadataSize;
+
+  if (source.length !== sourceSize)
+    throw new Error('Patch expects a ' + sourceSize + '-byte source ROM, but yours is ' + source.length + ' bytes. Wrong ROM?');
+
+  // Verify patch integrity + source match from the 12-byte footer.
+  const footer = patch.length - 12;
+  if (footer <= off) throw new Error('Patch is truncated.');
+  const wantSourceCrc = bpsReadU32LE(patch, footer);
+  const wantTargetCrc = bpsReadU32LE(patch, footer + 4);
+  const wantPatchCrc  = bpsReadU32LE(patch, footer + 8);
+  if (crc32(patch.subarray(0, footer + 8)) !== wantPatchCrc)
+    throw new Error('Patch file is corrupt (CRC mismatch). Try downloading it again.');
+  if (crc32(source) !== wantSourceCrc)
+    throw new Error('Your ROM does not match the one this patch was made for (CRC mismatch).');
+
+  const target = new Uint8Array(targetSize);
+  let targetPos = 0;
+  let sourceRel = 0, targetRel = 0;
+  let sinceYield = 0;
+  const yieldUI = () => new Promise(r => setTimeout(r, 0));
+
+  while (targetPos < targetSize) {
+    if (off >= footer) throw new Error('Patch ended unexpectedly while writing output.');
+    let data;
+    [data, off] = bpsReadNumber(patch, off);
+    const command = data & 3;
+    const length = Math.floor(data / 4) + 1;
+
+    if (command === 0) {                    // SourceRead
+      if (targetPos + length > source.length)
+        throw new Error('Patch tried to read past the end of the source ROM.');
+      target.set(source.subarray(targetPos, targetPos + length), targetPos);
+      targetPos += length;
+    } else if (command === 1) {             // TargetRead (literal bytes)
+      if (off + length > footer) throw new Error('Patch ended unexpectedly in literal data.');
+      target.set(patch.subarray(off, off + length), targetPos);
+      off += length;
+      targetPos += length;
+    } else if (command === 2) {             // SourceCopy
+      let d;
+      [d, off] = bpsReadNumber(patch, off);
+      sourceRel += ((d & 1) ? -1 : 1) * Math.floor(d / 2);
+      if (sourceRel < 0 || sourceRel + length > source.length)
+        throw new Error('Patch tried to copy from outside the source ROM.');
+      for (let i = 0; i < length; i++) target[targetPos++] = source[sourceRel++];
+    } else {                                // TargetCopy
+      let d;
+      [d, off] = bpsReadNumber(patch, off);
+      targetRel += ((d & 1) ? -1 : 1) * Math.floor(d / 2);
+      if (targetRel < 0 || targetRel + length > targetPos)
+        throw new Error('Patch tried to copy from outside the already-written output.');
+      for (let i = 0; i < length; i++) target[targetPos++] = target[targetRel++];
+    }
+
+    if (++sinceYield >= 2048) {
+      sinceYield = 0;
+      if (onProgress) onProgress(targetPos / targetSize);
+      await yieldUI();
+    }
+  }
+
+  if (crc32(target) !== wantTargetCrc)
+    throw new Error('Patched ROM failed verification (CRC mismatch). The patch may be corrupt.');
+  return target;
+}
+
+/* ---------------- UI ---------------- */
+const $ = id => document.getElementById(id);
+const romInput = $('romInput'), dropZone = $('dropZone'), dropText = $('dropText');
+const romStatus = $('romStatus'), patchBtn = $('patchBtn'), patchStatus = $('patchStatus');
+const progressWrap = $('progressWrap'), progressFill = $('progressFill'), progressLabel = $('progressLabel');
+const downloadBtn = $('downloadBtn'), doneText = $('doneText');
+
+let romData = null;
+
+function setStep(n, state) {
+  const el = $('step' + n);
+  el.classList.remove('active', 'done');
+  if (state) el.classList.add(state);
+}
+function setStatus(el, msg, cls) {
+  el.textContent = msg;
+  el.className = 'status' + (cls ? ' ' + cls : '');
+}
+function setProgress(frac, label) {
+  progressWrap.classList.add('show');
+  progressFill.style.width = Math.round(frac * 100) + '%';
+  progressLabel.textContent = label;
+}
+
+async function handleFile(file) {
+  romData = null;
+  romInput.value = '';
+  patchBtn.disabled = true;
+  downloadBtn.classList.add('hidden');
+  doneText.textContent = 'Your patched ROM will appear here when ready.';
+  setStep(2, ''); setStep(3, '');
+  if (!file) return;
+
+  dropText.innerHTML = 'Reading <span class="mono">' + escapeHtml(file.name) + '</span>&hellip;';
+  setStatus(romStatus, 'Checking ROM…', 'info');
+
+  try {
+    const buf = await file.arrayBuffer();
+    const data = new Uint8Array(buf);
+
+    if (data.length !== EXPECTED_ROM_SIZE) {
+      setStatus(romStatus,
+        'Wrong size: ' + data.length.toLocaleString() + ' bytes (expected ' +
+        EXPECTED_ROM_SIZE.toLocaleString() + '). This is not a vanilla Emerald ROM.', 'err');
+      dropText.textContent = 'Drop your .gba here or click to browse';
+      return;
+    }
+    setStatus(romStatus, 'Size OK — computing CRC32…', 'info');
+    await new Promise(r => setTimeout(r, 0)); // let UI paint
+    const crc = crc32(data);
+    if (crc !== EXPECTED_ROM_CRC32) {
+      setStatus(romStatus,
+        'CRC32 mismatch: got ' + hex8(crc) + ', expected ' + hex8(EXPECTED_ROM_CRC32) +
+        '. This ROM is not a clean Emerald (US v1.0).', 'err');
+      dropText.textContent = 'Drop your .gba here or click to browse';
+      return;
+    }
+
+    romData = data;
+    dropText.innerHTML = '<span class="mono">' + escapeHtml(file.name) + '</span> ✓';
+    setStatus(romStatus,
+      'Valid vanilla Emerald ROM detected (16 MiB, CRC32 ' + hex8(crc) + ').', 'ok');
+    setStep(1, 'done'); setStep(2, 'active');
+    patchBtn.disabled = false;
+    setStatus(patchStatus, '', '');
+  } catch (e) {
+    setStatus(romStatus, 'Could not read file: ' + e.message, 'err');
+    dropText.textContent = 'Drop your .gba here or click to browse';
+  }
+}
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+dropZone.addEventListener('click', () => romInput.click());
+romInput.addEventListener('change', e => handleFile(e.target.files[0]));
+['dragover', 'dragenter'].forEach(ev => dropZone.addEventListener(ev, e => {
+  e.preventDefault(); dropZone.classList.add('dragover');
+}));
+['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+}));
+dropZone.addEventListener('drop', e => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+
+patchBtn.addEventListener('click', async () => {
+  if (!romData) return;
+  patchBtn.disabled = true;
+  downloadBtn.classList.add('hidden');
+  setStep(2, 'active'); setStep(3, '');
+  setStatus(patchStatus, '', '');
+
+  try {
+    // 1. Download patch with progress
+    setStatus(patchStatus, 'Downloading patch…', 'info');
+    setProgress(0, 'Connecting…');
+    let resp;
+    try {
+      resp = await fetch(PATCH_URL);
+    } catch (e) {
+      throw new Error('Could not download the patch file. Check your connection and try again. ' +
+        '(If this keeps failing, the patch URL may need updating — see the page source.)');
+    }
+    if (!resp.ok) throw new Error('Patch download failed (HTTP ' + resp.status + ').');
+
+    const total = parseInt(resp.headers.get('Content-Length') || '0', 10);
+    const reader = resp.body.getReader();
+    const chunks = [];
+    let received = 0;
+    for (;;) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      setProgress(total ? received / total : 0,
+        total ? ('Downloading patch… ' + (received / 1048576).toFixed(1) + ' / ' + (total / 1048576).toFixed(1) + ' MB')
+              : ('Downloading patch… ' + (received / 1048576).toFixed(1) + ' MB'));
+    }
+    const patchBytes = new Uint8Array(received);
+    let p = 0;
+    for (const c of chunks) { patchBytes.set(c, p); p += c.length; }
+
+    // 2. Apply patch
+    setStatus(patchStatus, 'Patching… this takes a few seconds.', 'info');
+    const patched = await applyBps(romData, patchBytes, frac =>
+      setProgress(frac, 'Patching… ' + Math.round(frac * 100) + '%'));
+
+    // 3. Offer download
+    setProgress(1, 'Done!');
+    const blob = new Blob([patched], {type: 'application/octet-stream'});
+    const url = URL.createObjectURL(blob);
+    downloadBtn.href = url;
+    downloadBtn.download = PATCHED_FILENAME;
+    downloadBtn.classList.remove('hidden');
+    doneText.textContent = 'Patched successfully! (' + patched.length.toLocaleString() + ' bytes, verified ✓)';
+    setStatus(patchStatus, 'Patch applied and verified.', 'ok');
+    setStep(2, 'done'); setStep(3, 'active');
+  } catch (e) {
+    setStatus(patchStatus, 'Error: ' + e.message, 'err');
+    setStep(2, 'active');
+    progressWrap.classList.remove('show');
+  } finally {
+    patchBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
